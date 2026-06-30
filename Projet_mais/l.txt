@@ -1,0 +1,13 @@
+Trouver meilleur split
+
+Algo:
+pour chaque colonne
+    extraire la colonne
+    calculer tous les seuils possibles
+
+    pour chaque seuil
+        séparer les données
+        calculer pureté
+        garder le meilleur
+
+retourne le meilleur split

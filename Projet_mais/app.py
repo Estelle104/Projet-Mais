@@ -85,7 +85,7 @@ if image_uploadee is not None:
     image_bgr = cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR)
 
     # Extraction des features
-    with st.spinner("🔍 Analyse en cours..."):
+    with st.spinner(" Analyse en cours..."):
         features = extraire_features(image_bgr)
 
     # Prediction

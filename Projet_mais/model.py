@@ -8,7 +8,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, precision_score, recall_score, confusion_matrix
 
 
-#  FONCTIONS D’eVALUATION Purete
+#  FONCTIONS Purete
 def calculer_purete(y):
     if len(y) == 0:
         return 0.0
@@ -56,8 +56,6 @@ def trouver_meilleur_split(X, y):
     return meilleure_variable, meilleur_seuil, meilleure_purete
 
 
-# 3.1 : ARBRE DE DeCISION FROM SCRATCH
-
 # Un nœud de l'arbre est un dictionnaire :
 # {
 #   "variable"  : index de la variable utilisee
@@ -70,18 +68,18 @@ def trouver_meilleur_split(X, y):
 
 def construire_arbre(X, y, profondeur=0, max_profondeur=6):
 
-    # arret 1 groupe 100% pur
+    # 1 groupe 100% pur
     purete = calculer_purete(y)
     if purete == 1.0:
         prediction = int(y[0])
         return {"prediction": prediction}
 
-    # arret 2: profondeur maximale atteinte
+    # 2: profondeur maximale atteinte
     if profondeur >= max_profondeur:
         prediction = int(Counter(y).most_common(1)[0][0])
         return {"prediction": prediction}
 
-    # arret 3 plus assez de donnees
+    # 3 plus assez de donnees
     if len(y) < 2:
         prediction = int(Counter(y).most_common(1)[0][0]) 
         return {"prediction": prediction}
@@ -225,6 +223,11 @@ with open("modele_foret.pkl", "wb") as f:
     pickle.dump(foret_sklearn, f)
 
 print(" [] Modèle sauvegarde dans modele_foret.pkl")
+
+# Sauvegarde du tableau comparatif pour l'app Streamlit
+df_resultats.to_csv("resultats_comparaison.csv")
+print(" [] Tableau comparatif sauvegarde dans resultats_comparaison.csv")
+
 
 print("\n")
 print("=" * 60)

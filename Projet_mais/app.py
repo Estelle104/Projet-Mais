@@ -4,12 +4,15 @@ import numpy as np
 import pickle
 import os
 import shutil
+import pandas as pd
 from PIL import Image
 
 from features import (
+    calculer_masque_feuille,
     calculer_pct_rouille,
     calculer_rugosite,
-    calculer_saturation_moyenne
+    calculer_saturation_moyenne,
+    corriger_prediction
 )
 
 st.set_page_config(
@@ -30,35 +33,31 @@ modele = charger_modele()
 DOSSIER_UPLOADS = "uploads"
 os.makedirs(DOSSIER_UPLOADS, exist_ok=True)
 
+
 def extraire_features(img_bgr):
     img_hsv   = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
     img_grise = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+    masque_feuille = calculer_masque_feuille(img_hsv)
 
-    pct_rouille        = calculer_pct_rouille(img_hsv)
-    rugosite           = calculer_rugosite(img_grise)
-    saturation_moyenne = calculer_saturation_moyenne(img_hsv)
+    pct_rouille        = calculer_pct_rouille(img_hsv, masque_feuille)
+    rugosite           = calculer_rugosite(img_grise, masque_feuille)
+    saturation_moyenne = calculer_saturation_moyenne(img_hsv, masque_feuille)
 
     return np.array([[pct_rouille, rugosite, saturation_moyenne]])
 
 
 # SIDEBAR — Barre laterale
 with st.sidebar:
-    st.image("https://upload.wikimedia.org/wikipedia/commons/"
-             "thumb/a/a7/Camponotus_flavomarginatus_ant.jpg/"
-             "320px-Camponotus_flavomarginatus_ant.jpg",
-             width=100)
-    st.title("  DiagMais")
+    st.title("  Diagno-Katsaka")
     st.markdown("""
     **Modele utilise :**
     Random Forest (Scikit-Learn)
-    Accuracy : 96.1%
-    Rappel   : 96.9%
+    Accuracy : 93.17%
+    Rappel   : 89.69%
     """)
 
 # PAGE PRINCIPALE
 st.title("  Diagnostic de la Rouille Polysora")
-st.markdown("Televersez une photo de feuille de mais "
-            "pour obtenir un diagnostic instantane.")
 
 st.divider()
 
@@ -89,7 +88,14 @@ if image_uploadee is not None:
         features = extraire_features(image_bgr)
 
     # Prediction
-    prediction = modele.predict(features)[0]
+    prediction_modele = int(modele.predict(features)[0])
+    prediction, correction_appliquee = corriger_prediction(
+        prediction_modele,
+        features
+    )
+    probabilites = None
+    if hasattr(modele, "predict_proba"):
+        probabilites = modele.predict_proba(features)[0]
 
     with col2:
         st.subheader("  Resultats de l'analyse")
@@ -107,6 +113,10 @@ if image_uploadee is not None:
 
         # Affichage du diagnostic
         st.subheader("  Diagnostic")
+        if probabilites is not None:
+            confiance = probabilites[int(prediction_modele)]
+            st.metric("Confiance du modele", f"{confiance*100:.1f}%")
+
         if prediction == 1:
             st.error("  ATTENTION : Feuille Malade\n"
                      "(Rouille Polysora Detectee)")
@@ -118,6 +128,10 @@ if image_uploadee is not None:
                        "Aucun signe de rouille detecte.")
             st.markdown(" **Action recommandee :** "
                         "Continuer la surveillance reguliere.")
+            if correction_appliquee:
+                st.info("Correction appliquee : le modele hesitait, mais "
+                        "le pourcentage de rouille detecte est trop faible "
+                        "pour signaler une rouille.")
 
     # Sauvegarde dans l'historique
     chemin_sauvegarde = os.path.join(
@@ -128,12 +142,33 @@ if image_uploadee is not None:
         f.write(image_uploadee.getbuffer())
 
     st.success(f" Image sauvegardee dans l'historique !")
+    
+# TABLEAU COMPARATIF DES MODÈLES
+st.divider()
+st.header(" Comparaison des modèles")
 
+try:
+    df_resultats = pd.read_csv("resultats_comparaison.csv", index_col="Modèle")
+
+    df_resultats["Moyenne"] = df_resultats.mean(axis=1, numeric_only=True)
+
+    st.dataframe(
+        df_resultats.style.format({
+            "Accuracy": "{:.2%}",
+            "Precision": "{:.2%}",
+            "Rappel": "{:.2%}",
+            "Moyenne": "{:.2%}"
+        }),
+        use_container_width=True
+    )
+except FileNotFoundError:
+    st.warning("Le fichier resultats_comparaison.csv est introuvable. "
+               "Lancez d'abord le script d'entraînement.")
+    
 #  GALERIE HISTORIQUE
 st.divider()
 st.header(" Galerie des analyses precedentes")
 
-# On recupere toutes les images sauvegardees
 images_historique = [
     f for f in os.listdir(DOSSIER_UPLOADS)
     if f.lower().endswith((".jpg", ".jpeg", ".png"))
@@ -146,15 +181,12 @@ else:
     st.markdown(f"**{len(images_historique)} analyse(s) "
                 f"effectuee(s)**")
 
-    # Affichage en grille de 3 colonnes
     nb_colonnes = 3
     colonnes = st.columns(nb_colonnes)
 
     for i, nom_image in enumerate(images_historique):
         chemin = os.path.join(DOSSIER_UPLOADS, nom_image)
 
-        # Le label est encode dans le nom du fichier
-        # "1_image.jpg" → malade, "0_image.jpg" → saine
         label = int(nom_image.split("_")[0])
 
         with colonnes[i % nb_colonnes]:
@@ -163,9 +195,9 @@ else:
                 st.error(" Malade")
             else:
                 st.success(" Saine")
-            st.caption(nom_image[2:])  # nom sans le prefixe
+            st.caption(nom_image[2:]) 
 
-    # Bouton pour vider l'historique
+    
     st.divider()
     if st.button(" Vider l'historique"):
         shutil.rmtree(DOSSIER_UPLOADS)

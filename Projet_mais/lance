@@ -1,0 +1,4 @@
+python3 features.py 
+python3 split.py 
+python3 model.py 
+streamlit run app.py

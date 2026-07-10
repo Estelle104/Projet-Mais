@@ -8,7 +8,6 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, precision_score, recall_score, confusion_matrix
 
 
-#  FONCTIONS Purete
 def calculer_purete(y):
     if len(y) == 0:
         return 0.0
@@ -28,7 +27,6 @@ def trouver_meilleur_split(X, y):
     meilleure_purete = 0.0
     meilleure_variable = None
 
-    # On teste chaque variable
     for col in range(X.shape[1]):
         X_col = X[:, col]
         valeurs_triees = np.sort(np.unique(X_col))
@@ -57,18 +55,18 @@ def trouver_meilleur_split(X, y):
 
 def construire_arbre(X, y, profondeur=0, max_profondeur=6):
 
-    # 1 groupe 100% pur
+    #  groupe 100% pur
     purete = calculer_purete(y)
     if purete == 1.0:
         prediction = int(y[0])
         return {"prediction": prediction}
 
-    # 2: profondeur maximale atteinte
+    # profondeur maximale atteinte
     if profondeur >= max_profondeur:
         prediction = int(Counter(y).most_common(1)[0][0])
         return {"prediction": prediction}
 
-    # 3 plus assez de donnees
+    # plus assez de donnees
     if len(y) < 2:
         prediction = int(Counter(y).most_common(1)[0][0]) 
         return {"prediction": prediction}
@@ -80,14 +78,12 @@ def construire_arbre(X, y, profondeur=0, max_profondeur=6):
         prediction = int(Counter(y).most_common(1)[0][0])
         return {"prediction": prediction}
 
-    # separation des donnes
     masque_gauche = X[:, variable] <= seuil
     masque_droite = X[:, variable] >  seuil
 
     X_gauche, y_gauche = X[masque_gauche], y[masque_gauche]
     X_droite, y_droite = X[masque_droite], y[masque_droite]
 
-    # recursion sous arbre
     return {
         "variable" : variable,
         "seuil"    : seuil,
@@ -99,11 +95,9 @@ def construire_arbre(X, y, profondeur=0, max_profondeur=6):
 
 
 def predire_un(arbre, x):
-    # prediction si feuille
     if "prediction" in arbre:
         return arbre["prediction"]
 
-    # descendre dans l'arbre
     if x[arbre["variable"]] <= arbre["seuil"]:
         return predire_un(arbre["gauche"], x)
     else:
@@ -120,12 +114,10 @@ def construire_foret(X, y, n_arbres=10, max_profondeur=6):
     N = len(y)
 
     for i in range(n_arbres):
-        # bagging : sous-echantillonnage avec remplacement
         indices = np.random.choice(N, size=N, replace=True)
         X_sample = X[indices]
         y_sample = y[indices]
 
-        # on construit un arbre sur cet echantillon
         arbre = construire_arbre(X_sample, y_sample, max_profondeur=max_profondeur)
         
         foret.append(arbre)
@@ -135,10 +127,8 @@ def construire_foret(X, y, n_arbres=10, max_profondeur=6):
 
 
 def predire_foret(foret, X):
-    # chaque arbre vote
     votes = np.array([predire(arbre, X) for arbre in foret])
 
-    # vote majoritaire pour chaque exemple
     predictions = []
     for j in range(X.shape[0]):
         votes_j = votes[:, j]
@@ -162,14 +152,14 @@ X_train, X_test, y_train, y_test = train_test_split(
 
 print(f" [] Donnees chargees : {len(X_train)} train, {len(X_test)} test")
 
-# ENTRAÎNEMENT
-#  Arbre From Scratch 
+# Train
+#  Arbre 
 print("\n -------- Construction de l'arbre From Scratch...")
 arbre_scratch = construire_arbre(X_train, y_train, max_profondeur=3)
 pred_arbre_scratch = predire(arbre_scratch, X_test)
 print(" [] Arbre From Scratch termine !")
 
-#  Random Forest From Scratch 
+#  Random Forest 
 print("\n---------- Construction de la foret From Scratch...")
 foret_scratch = construire_foret(X_train, y_train,
                                   n_arbres=10, max_profondeur=3)
@@ -212,7 +202,6 @@ with open("modele_foret.pkl", "wb") as f:
 
 print(" [] Modèle sauvegarde dans modele_foret.pkl")
 
-# Sauvegarde du tableau comparatif pour l'app Streamlit
 df_resultats.to_csv("resultats_comparaison.csv")
 print(" [] Tableau comparatif sauvegarde dans resultats_comparaison.csv")
 
